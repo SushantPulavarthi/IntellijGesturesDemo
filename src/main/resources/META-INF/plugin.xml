@@ -25,7 +25,7 @@
                 id="GestureWindow"
                 class="com.sushant.intellijgesturedemo.GestureWindow"
                 text="Gesture Window">
-            <keyboard-shortcut keymap="$default" first-keystroke="shift G"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl m"/>
         </action>
     </actions>
 

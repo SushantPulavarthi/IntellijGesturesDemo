@@ -2,13 +2,12 @@ package com.sushant.intellijgesturedemo
 
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.DumbAwareAction
-import java.awt.Dimension
 import java.awt.Point
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import javax.swing.ImageIcon
 import javax.swing.JFrame
-import javax.swing.JLabel
+import javax.swing.SwingUtilities
+import javax.swing.SwingWorker
 
 class GestureWindow : DumbAwareAction() {
     companion object {
@@ -20,45 +19,46 @@ class GestureWindow : DumbAwareAction() {
     }
 
     private val frame = JFrame("Gesture Window")
-    private val imageIcon = ImageIcon(javaClass.getResource("/jetbrains.png"))
-    private val label = JLabel()
     private var enteredAt = Point()
     private var lastPos = Point()
     private var currentScale = 1.0
+
+    private var currentComponent: ResizeableComponent = SimplePanel(frame)
 
     init {
         frame.setSize(WINDOW_WIDTH, WINDOW_HEIGHT)
         frame.layout = null
 
-        label.icon = imageIcon
-        label.size = Dimension(imageIcon.iconWidth, imageIcon.iconHeight)
-        label.location = Point(
-            (frame.width - imageIcon.iconWidth) / 2,
-            (frame.height - imageIcon.iconHeight) / 2
-        )
-        frame.add(label)
+        // Simulate creating a more complicated panel in background
+        SwingUtilities.invokeLater {
+            val complexPanel = ComplexPanel(frame)
+            complexPanel.execute()
+            complexPanel.addPropertyChangeListener {
+                e -> if (e.propertyName == "state" && e.newValue == SwingWorker.StateValue.DONE) {
+                    swapComponent(complexPanel)
+                }
+            }
+        }
 
         frame.addMouseListener(object : MouseAdapter() {
             override fun mouseEntered(e: MouseEvent) {
                 enteredAt = e.point
                 lastPos = e.point
                 currentScale = MINIMUM_SIZE
-                scaleAndPositionImage(e.point)
-                label.isVisible = true
+                currentComponent.toggleVisible()
             }
 
             override fun mouseExited(e: MouseEvent?) {
-                label.isVisible = false
+                currentComponent.toggleVisible()
             }
         })
 
         frame.addMouseMotionListener(object : MouseAdapter() {
             override fun mouseMoved(e: MouseEvent) {
-                if (!label.isVisible) return
+                if (!currentComponent.isVisible) return
 
                 val deltaChange = e.point.distance(lastPos)
                 if (deltaChange != 0.0) {
-                    println(deltaChange)
                     val scaleChange = deltaChange / SCALE_FACTOR
                     // If moves back towards entered out, scale image down
                     currentScale += if (enteredAt.distance(e.point) < enteredAt.distance(lastPos)) {
@@ -66,9 +66,8 @@ class GestureWindow : DumbAwareAction() {
                     } else {
                         scaleChange
                     }
-                    println(currentScale)
                     currentScale = currentScale.coerceIn(MINIMUM_SIZE, MAXIMUM_SIZE)
-                    scaleAndPositionImage(e.point)
+                    currentComponent.rescaleAndPosition(e.point, currentScale)
                 }
 
                 lastPos = e.point
@@ -76,27 +75,18 @@ class GestureWindow : DumbAwareAction() {
         })
     }
 
-    override fun actionPerformed(e: AnActionEvent) {
-        frame.isVisible = !frame.isVisible
+    /* Swap the current component with the new component */
+    private fun swapComponent(newComponent: ResizeableComponent) {
+        frame.remove(currentComponent.panel)
+        val wasVisible = currentComponent.isVisible
+        currentComponent = newComponent
+        frame.add(newComponent.panel)
+        frame.repaint()
+        if (currentComponent.isVisible != wasVisible)
+            currentComponent.toggleVisible()
     }
 
-    fun scaleAndPositionImage(pos: Point) {
-        // Scale Image
-        val imageWidth = imageIcon.iconWidth
-        val imageHeight = imageIcon.iconHeight
-        label.icon = ImageIcon(
-            imageIcon.image.getScaledInstance(
-                (imageWidth * currentScale).toInt(),
-                (imageHeight * currentScale).toInt(),
-                java.awt.Image.SCALE_SMOOTH
-            )
-        )
-        label.size = Dimension(label.icon.iconWidth, label.icon.iconHeight)
-
-        // Put image at centre of cursor
-        label.location = Point(
-            pos.x - label.width / 2,
-            pos.y - label.height / 2
-        )
+    override fun actionPerformed(e: AnActionEvent) {
+        frame.isVisible = !frame.isVisible
     }
 }
